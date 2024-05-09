@@ -71,8 +71,8 @@ class HackTheBox:
     URL_ACTIVE_MACHINES = f"{URL_BASE}/machine/paginated?per_page=100"
     URL_RUNNING_MACHINE = f"{URL_BASE}/api/v4/machine/active"
 
-    def __init__(self):
-        self.token = getenv("HACKTHEBOX_TOKEN")
+    def __init__(self, token):
+        self.token = token
         self.headers = {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0 Win64 x64 rv: 98.0) Gecko/20100101 Firefox/98.0",
             "Authorization": f"Bearer {self.token}",
@@ -102,6 +102,7 @@ class HackTheBox:
 
 
 class DiscordBot(commands.Bot):
+    htb = HackTheBox(getenv("HACKTHEBOX_TOKEN"))
     saturday_night_panorama_category = None
 
     def __init__(self, command_prefix, self_bot, intents):
@@ -121,7 +122,7 @@ class DiscordBot(commands.Bot):
     def add_commands(self):
         @self.command(name="upcoming", pass_context=True)
         async def upcoming(ctx):
-            machines = htb.get_list_of_upcoming_machines()
+            machines = self.htb.get_list_of_upcoming_machines()
             category = self.get_saturday_night_panorama()
             category_id = category.id
             channels = []
@@ -152,7 +153,6 @@ if __name__ == "__main__":
     intents = discord.Intents.default()
     intents.message_content = True
     bot = DiscordBot(intents=intents, command_prefix=".", self_bot=False)
-    htb = HackTheBox()
     bot.run(getenv("DISCORD_TOKEN"))
     # htb.get_active_machine()
     # htb.get_list_of_active_machines()
