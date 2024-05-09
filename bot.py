@@ -108,7 +108,7 @@ class DiscordBot(commands.Bot):
         commands.Bot.__init__(self, command_prefix=command_prefix, self_bot=self_bot, intents=intents)
         self.add_commands()
 
-    def get_discord_saturday_night_panorama_id(self):
+    def get_saturday_night_panorama(self):
         if self.saturday_night_panorama_category:
             return self.saturday_night_panorama_category
 
@@ -122,7 +122,7 @@ class DiscordBot(commands.Bot):
         @self.command(name="upcoming", pass_context=True)
         async def upcoming(ctx):
             machines = htb.get_list_of_upcoming_machines()
-            category = self.get_discord_saturday_night_panorama_id()
+            category = self.get_saturday_night_panorama()
             category_id = category.id
             channels = []
 
@@ -141,7 +141,7 @@ class DiscordBot(commands.Bot):
                     text += f"\n- {m.to_discord_string()} (Channel {":white_check_mark:" if channel_created else ":x:"})"
 
                     if not channel_created:
-                        await bot.guilds[0].create_text_channel(m.name, category=category, topic=m.to_discord_string())
+                        await category.guild.create_text_channel(m.name, category=category, topic=m.to_discord_string())
             else:
                 text = "Currently no upcoming machines :("
             await ctx.channel.send(text)
