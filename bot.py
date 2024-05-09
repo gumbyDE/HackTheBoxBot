@@ -102,11 +102,11 @@ class HackTheBox:
 
 
 class DiscordBot(commands.Bot):
-    htb = HackTheBox(getenv("HACKTHEBOX_TOKEN"))
     saturday_night_panorama_category = None
 
     def __init__(self, command_prefix, self_bot, intents):
         commands.Bot.__init__(self, command_prefix=command_prefix, self_bot=self_bot, intents=intents)
+        self.htb = HackTheBox(getenv("HACKTHEBOX_TOKEN"))
         self.add_commands()
 
     def get_saturday_night_panorama(self):
@@ -118,6 +118,9 @@ class DiscordBot(commands.Bot):
                 if category.name == "saturday-night-panorama-bar":
                     self.saturday_night_panorama_category = category
                     return category
+
+    async def on_ready(self):
+        await self.change_presence(status=discord.Status.online)
 
     def add_commands(self):
         @self.command(name="upcoming", pass_context=True)
