@@ -142,7 +142,8 @@ class DiscordBot(commands.Bot):
                     for channel in channels:
                         if channel.casefold() == m.name.casefold():
                             channel_created = True
-                    text += f"\n- {m.to_discord_string()} (Channel {":white_check_mark:" if channel_created else ":x:"})"
+                    icon = ":white_check_mark:" if channel_created else ":x:"
+                    text += f"\n- {m.to_discord_string()} (Channel {icon})"
 
                     if not channel_created:
                         await category.guild.create_text_channel(m.name, category=category, topic=m.to_discord_string())
