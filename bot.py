@@ -1,9 +1,13 @@
 import requests
 from os import getenv
+
 from dotenv import load_dotenv
 import datetime
 import discord
-from discord.ext import commands
+from discord.ext import commands, tasks
+
+
+TASK_CREATE_CHANNEL_TIME = datetime.time(hour=1, minute=0)
 
 
 class HackTheBoxMachine:
@@ -24,11 +28,13 @@ class HackTheBoxMachine:
         else:
             self.difficulty_emoji = ":white_circle:"
 
-        self.release_date_string = json_data["release"]
-        self.release_date_date = datetime.datetime.strptime(self.release_date_string, '%Y-%m-%dT%H:%M:%S.%fZ')
-        self.release_date = self.release_date_date.strftime("%Y-%m-%d")
+        if json_data.get("release"):
+            self.release_date_string = json_data["release"]
+            self.release_date_date = datetime.datetime.strptime(self.release_date_string, '%Y-%m-%dT%H:%M:%S.%fZ')
+            self.release_date = self.release_date_date.strftime("%Y-%m-%d")
 
-        self.os = json_data["os"]
+        if json_data.get("os"):
+            self.os = json_data["os"]
         if self.os == "Windows":
             self.os_emoji = ":window:"
         elif self.os == "Linux" or self.os == "FreeBSD" or self.os == "OpenBSD":
@@ -51,17 +57,30 @@ class HackTheBoxMachine:
         if json_data.get("retiring"):
             self.retiring = json_data["retiring"]["name"]
 
-    def to_discord_string(self):
-        result = f'Release date: {self.release_date} | OS: {self.os} {self.os_emoji} | Difficulty: {self.difficulty} {self.difficulty_emoji}'
+    def to_discord_string(self, include_name: bool = True) -> str:
+        result = ""
+        if include_name:
+            result += f"Name: {self.name}"
+
+        result += f'Release date: {self.release_date} | OS: {self.os} {self.os_emoji} | Difficulty: {self.difficulty} {self.difficulty_emoji}'
         if len(self.maker) > 0:
             result += f" | Box creator: {', '.join(self.maker)}"
 
-        if self.retiring:
+        if hasattr(self, "retiring"):
             result += f" | Retiring: {self.retiring}"
 
         return result
 
-    def __repr__(self):
+    def to_discord_short_string(self) -> str:
+        result = ""
+        result += f"{self.name} {self.os_emoji} {self.difficulty_emoji} "
+
+        if len(self.maker) > 0:
+            result += f"({', '.join(self.maker)})"
+
+        return result
+
+    def __repr__(self) -> str:
         return f'HackTheBoxMachine("{self.name} | {self.to_discord_string()}")'
 
 
@@ -78,11 +97,13 @@ class HackTheBox:
             "Authorization": f"Bearer {self.token}",
         }
 
-    def get_active_machine(self):
-        result = requests.get(self.URL_UPCOMING_MACHINES, headers=self.headers)
-        return result.json()
+    def get_active_machine(self) -> HackTheBoxMachine:
+        result = requests.get(self.URL_RUNNING_MACHINE, headers=self.headers)
+        result_json = result.json()
 
-    def get_list_of_upcoming_machines(self):
+        return HackTheBoxMachine(result_json["info"])
+
+    def get_list_of_upcoming_machines(self) -> list[HackTheBoxMachine]:
         result = requests.get(self.URL_UPCOMING_MACHINES, headers=self.headers)
         result_json = result.json()
 
@@ -91,14 +112,14 @@ class HackTheBox:
             machines.append(HackTheBoxMachine(machine))
         return machines
 
-    def get_list_of_active_machines(self):
+    def get_list_of_active_machines(self) -> list[HackTheBoxMachine]:
         result = requests.get(self.URL_ACTIVE_MACHINES, headers=self.headers)
         result_json = result.json()
 
         machines = []
         for machine in result_json["data"]:
             machines.append(HackTheBoxMachine(machine))
-        print(machines)
+        return machines
 
 
 class DiscordBot(commands.Bot):
@@ -109,7 +130,7 @@ class DiscordBot(commands.Bot):
         self.htb = HackTheBox(getenv("HACKTHEBOX_TOKEN"))
         self.add_commands()
 
-    def get_saturday_night_panorama(self):
+    def get_saturday_night_panorama(self) -> discord.CategoryChannel:
         if self.saturday_night_panorama_category:
             return self.saturday_night_panorama_category
 
@@ -119,36 +140,62 @@ class DiscordBot(commands.Bot):
                     self.saturday_night_panorama_category = category
                     return category
 
-    async def on_ready(self):
+    async def on_ready(self) -> None:
         await self.change_presence(status=discord.Status.online)
+        if not self.create_upcoming_channels.is_running():
+            self.create_upcoming_channels.start()
 
-    def add_commands(self):
+    @tasks.loop(time=TASK_CREATE_CHANNEL_TIME)
+    async def create_upcoming_channels(self) -> None:
+        await self.command_upcoming_boxes()
+
+    async def command_upcoming_boxes(self) -> str:
+        machines = self.htb.get_list_of_upcoming_machines()
+        category = self.get_saturday_night_panorama()
+        category_id = category.id
+        channels = []
+
+        for guild in bot.guilds:
+            for channel in guild.text_channels:
+                if channel.category_id == category_id:
+                    channels.append(channel.name)
+
+        text = ""
+        if len(machines) > 0:
+            text = "The following machines are upcoming:\n"
+            for m in machines:
+                channel_created = False
+                for channel in channels:
+                    if channel.casefold() == m.name.casefold():
+                        channel_created = True
+                icon = ":white_check_mark:" if channel_created else ":x:"
+                text += f"\n- {m.to_discord_string()} (Channel {icon})"
+
+                if not channel_created:
+                    await category.guild.create_text_channel(m.name, category=category, topic=m.to_discord_string(False))
+        else:
+            text = "Currently no upcoming machines :("
+        return text
+
+    async def command_active_boxes(self) -> str:
+        machines = self.htb.get_list_of_active_machines()
+
+        text = ""
+        if len(machines) > 0:
+            text = "The following machines are currently active:\n"
+            for m in machines:
+                text += f"\n- {m.to_discord_short_string()}"
+        return text
+
+    def add_commands(self) -> None:
         @self.command(name="upcoming", pass_context=True)
-        async def upcoming(ctx):
-            machines = self.htb.get_list_of_upcoming_machines()
-            category = self.get_saturday_night_panorama()
-            category_id = category.id
-            channels = []
+        async def upcoming(ctx) -> None:
+            text = await self.command_upcoming_boxes()
+            await ctx.channel.send(text)
 
-            for guild in bot.guilds:
-                for channel in guild.text_channels:
-                    if channel.category_id == category_id:
-                        channels.append(channel.name)
-
-            if len(machines) > 0:
-                text = "The following machines are upcoming:\n"
-                for m in machines:
-                    channel_created = False
-                    for channel in channels:
-                        if channel.casefold() == m.name.casefold():
-                            channel_created = True
-                    icon = ":white_check_mark:" if channel_created else ":x:"
-                    text += f"\n- {m.to_discord_string()} (Channel {icon})"
-
-                    if not channel_created:
-                        await category.guild.create_text_channel(m.name, category=category, topic=m.to_discord_string())
-            else:
-                text = "Currently no upcoming machines :("
+        @self.command(name="active", pass_context=True)
+        async def active(ctx) -> None:
+            text = await self.command_active_boxes()
             await ctx.channel.send(text)
 
 
