@@ -23,7 +23,7 @@ class HackTheBoxMachine:
             self.difficulty_emoji = ":green_circle:"
         elif self.difficulty == "Medium":
             self.difficulty_emoji = ":orange_circle:"
-        elif self.difficulty == "High":
+        elif self.difficulty == "Hard":
             self.difficulty_emoji = ":red_circle:"
         else:
             self.difficulty_emoji = ":white_circle:"
