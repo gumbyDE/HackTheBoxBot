@@ -1,0 +1,11 @@
+[Unit]
+Description=Discord Bot
+After=multi-user.target
+[Service]
+User=bot
+Group=bot
+Type=simple
+Restart=always
+ExecStart=/usr/bin/python3 /home/bot/HackTheBoxBot/bot.py
+[Install]
+WantedBy=multi-user.target

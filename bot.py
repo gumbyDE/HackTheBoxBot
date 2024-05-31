@@ -1,5 +1,5 @@
 import requests
-from os import getenv
+from os import getenv, system
 
 from dotenv import load_dotenv
 import datetime
@@ -197,6 +197,13 @@ class DiscordBot(commands.Bot):
         async def active(ctx) -> None:
             text = await self.command_active_boxes()
             await ctx.channel.send(text)
+
+        @self.command(name="update", pass_context=True)
+        async def active(ctx) -> None:
+            await ctx.channel.send("Updating bot from GitHub and restarting the service...")
+            # for this to work run the bot in /home/bot/HackTheBoxBot/ as user bot and install discordbot.service in systemd
+            # then install sudo and put sudoers_discordbot into /etc/sudoers.d/discordbot
+            system("/usr/bin/git -C /home/bot/HackTheBoxBot/ pull && /usr/bin/sudo /usr/bin/systemctl restart discordbot")
 
 
 if __name__ == "__main__":
