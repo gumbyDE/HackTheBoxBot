@@ -5,6 +5,7 @@ from dotenv import load_dotenv
 import datetime
 import discord
 from discord.ext import commands, tasks
+from typing import Optional
 
 
 TASK_CREATE_CHANNEL_TIME = datetime.time(hour=1, minute=0)
@@ -12,21 +13,23 @@ TASK_CREATE_CHANNEL_TIME = datetime.time(hour=1, minute=0)
 
 class HackTheBoxMachine:
     def __init__(self, json_data: dict):
-        self.name = json_data["name"]
+        if json_data.get("name"):
+            self.name = json_data["name"]
 
         if json_data.get("difficultyText"):
             self.difficulty = json_data["difficultyText"]
         if json_data.get("difficulty_text"):
             self.difficulty = json_data["difficulty_text"]
 
-        if self.difficulty == "Easy":
-            self.difficulty_emoji = ":green_circle:"
-        elif self.difficulty == "Medium":
-            self.difficulty_emoji = ":orange_circle:"
-        elif self.difficulty == "Hard":
-            self.difficulty_emoji = ":red_circle:"
-        else:
-            self.difficulty_emoji = ":white_circle:"
+        if hasattr(self, "difficulty"):
+            if self.difficulty == "Easy":
+                self.difficulty_emoji = ":green_circle:"
+            elif self.difficulty == "Medium":
+                self.difficulty_emoji = ":orange_circle:"
+            elif self.difficulty == "Hard":
+                self.difficulty_emoji = ":red_circle:"
+            else:
+                self.difficulty_emoji = ":white_circle:"
 
         if json_data.get("release"):
             self.release_date_string = json_data["release"]
@@ -35,18 +38,18 @@ class HackTheBoxMachine:
 
         if json_data.get("os"):
             self.os = json_data["os"]
-        if self.os == "Windows":
-            self.os_emoji = ":window:"
-        elif self.os == "Linux" or self.os == "FreeBSD" or self.os == "OpenBSD":
-            self.os_emoji = ":penguin:"
-        else:
-            self.os_emoji = ":question:"
+            if self.os == "Windows":
+                self.os_emoji = ":window:"
+            elif self.os == "Linux" or self.os == "FreeBSD" or self.os == "OpenBSD":
+                self.os_emoji = ":penguin:"
+            else:
+                self.os_emoji = ":question:"
 
         self.maker = []
-        if json_data.get("maker"):
-            self.maker.append(json_data.get("maker"))
-        if json_data.get("maker2"):
-            self.maker.append(json_data.get("maker2"))
+        if json_data.get("maker") and json_data.get("maker").get("name"):
+            self.maker.append(json_data["maker"]["name"])
+        if json_data.get("maker2") and json_data.get("maker2").get("name"):
+            self.maker.append(json_data["maker2"]["name"])
         if json_data.get("firstCreator"):
             for creator in json_data["firstCreator"]:
                 self.maker.append(creator["name"])
@@ -58,18 +61,27 @@ class HackTheBoxMachine:
             self.retiring = json_data["retiring"]["name"]
 
     def to_discord_string(self, include_name: bool = True) -> str:
-        result = ""
-        if include_name:
-            result += f"Name: {self.name}"
+        result = []
 
-        result += f'Release date: {self.release_date} | OS: {self.os} {self.os_emoji} | Difficulty: {self.difficulty} {self.difficulty_emoji}'
+        if include_name:
+            result.append(f"Name: {self.name}")
+
+        if hasattr(self, "release_date"):
+            result.append(f'Release date: {self.release_date}')
+
+        if hasattr(self, "os"):
+            result.append(f'OS: {self.os} {self.os_emoji}')
+
+        if hasattr(self, "difficulty"):
+            result.append(f'Difficulty: {self.difficulty} {self.difficulty_emoji}')
+
         if len(self.maker) > 0:
-            result += f" | Box creator: {', '.join(self.maker)}"
+            result.append(f"Box creator: {', '.join(self.maker)}")
 
         if hasattr(self, "retiring"):
-            result += f" | Retiring: {self.retiring}"
+            result.append(f"Retiring: {self.retiring}")
 
-        return result
+        return ' | '.join(result)
 
     def to_discord_short_string(self) -> str:
         result = ""
@@ -88,20 +100,26 @@ class HackTheBox:
     URL_BASE = "https://labs.hackthebox.com/api/v4"
     URL_UPCOMING_MACHINES = f"{URL_BASE}/machine/unreleased"
     URL_ACTIVE_MACHINES = f"{URL_BASE}/machine/paginated?per_page=100"
-    URL_RUNNING_MACHINE = f"{URL_BASE}/api/v4/machine/active"
+    URL_RUNNING_MACHINE = f"{URL_BASE}/machine/active"
+    URL_MACHINE_INFO = f"{URL_BASE}/machine/profile/"
 
     def __init__(self, token):
         self.token = token
         self.headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0 Win64 x64 rv: 98.0) Gecko/20100101 Firefox/98.0",
-            "Authorization": f"Bearer {self.token}",
+            "User-Agent": "Discordbot",
+            "Authorization": f"Bearer {self.token}"
         }
 
-    def get_active_machine(self) -> HackTheBoxMachine:
+    def get_active_machine(self) -> Optional[HackTheBoxMachine]:
         result = requests.get(self.URL_RUNNING_MACHINE, headers=self.headers)
         result_json = result.json()
 
-        return HackTheBoxMachine(result_json["info"])
+        if result_json.get("info") is None:
+            return None
+        else:
+            result = requests.get(self.URL_MACHINE_INFO + result_json["info"]["name"], headers=self.headers)
+            result_json = result.json()
+            return HackTheBoxMachine(result_json["info"])
 
     def get_list_of_upcoming_machines(self) -> list[HackTheBoxMachine]:
         result = requests.get(self.URL_UPCOMING_MACHINES, headers=self.headers)
@@ -148,6 +166,16 @@ class DiscordBot(commands.Bot):
     @tasks.loop(time=TASK_CREATE_CHANNEL_TIME)
     async def create_upcoming_channels(self) -> None:
         await self.command_upcoming_boxes()
+
+    async def command_running_box(self) -> str:
+        machine = self.htb.get_active_machine()
+        if machine is None:
+            text = "No machine running :("
+        else:
+            text = "The following machine is running:\n"
+            text += machine.to_discord_string()
+
+        return text
 
     async def command_upcoming_boxes(self) -> str:
         machines = self.htb.get_list_of_upcoming_machines()
@@ -196,6 +224,11 @@ class DiscordBot(commands.Bot):
         @self.command(name="active", pass_context=True)
         async def active(ctx) -> None:
             text = await self.command_active_boxes()
+            await ctx.channel.send(text)
+
+        @self.command(name="running", pass_context=True)
+        async def active(ctx) -> None:
+            text = await self.command_running_box()
             await ctx.channel.send(text)
 
         @self.command(name="update", pass_context=True)
