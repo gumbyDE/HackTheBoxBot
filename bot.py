@@ -227,7 +227,7 @@ class DiscordBot(commands.Bot):
             await ctx.channel.send(text)
 
         @self.command(name="running", pass_context=True)
-        async def active(ctx) -> None:
+        async def running(ctx) -> None:
             text = await self.command_running_box()
             await ctx.channel.send(text)
 
