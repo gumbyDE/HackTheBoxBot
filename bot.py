@@ -232,7 +232,7 @@ class DiscordBot(commands.Bot):
             await ctx.channel.send(text)
 
         @self.command(name="update", pass_context=True)
-        async def active(ctx) -> None:
+        async def update(ctx) -> None:
             await ctx.channel.send("Updating bot from GitHub and restarting the service...")
             # for this to work run the bot in /home/bot/HackTheBoxBot/ as user bot and install discordbot.service in systemd
             # then install sudo and put sudoers_discordbot into /etc/sudoers.d/discordbot
