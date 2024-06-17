@@ -9,6 +9,7 @@ from typing import Optional
 
 
 TASK_CREATE_CHANNEL_TIME = datetime.time(hour=17, minute=0)
+PRIVILEGED_IDS = [398942762357096449]
 
 
 class HackTheBoxMachine:
@@ -228,11 +229,16 @@ class DiscordBot(commands.Bot):
 
         @self.command(name="running", pass_context=True)
         async def running(ctx) -> None:
+            print(ctx.author.id)
             text = await self.command_running_box()
             await ctx.channel.send(text)
 
         @self.command(name="update", pass_context=True)
         async def update(ctx) -> None:
+            if ctx.author.id not in PRIVILEGED_IDS:
+                await ctx.channel.send("Access denied")
+                return
+
             await ctx.channel.send("Updating bot from GitHub and restarting the service...")
             # for this to work run the bot in /home/bot/HackTheBoxBot/ as user bot and install discordbot.service in systemd
             # then install sudo and put sudoers_discordbot into /etc/sudoers.d/discordbot
