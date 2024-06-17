@@ -8,7 +8,7 @@ from discord.ext import commands, tasks
 from typing import Optional
 
 
-TASK_CREATE_CHANNEL_TIME = datetime.time(hour=1, minute=0)
+TASK_CREATE_CHANNEL_TIME = datetime.time(hour=17, minute=0)
 
 
 class HackTheBoxMachine:
