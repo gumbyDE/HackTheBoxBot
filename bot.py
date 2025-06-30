@@ -57,6 +57,7 @@ class HackTheBoxMachine:
         if json_data.get("coCreators"):
             for creator in json_data["coCreators"]:
                 self.maker.append(creator["name"])
+
         if json_data.get("info_status"):
             self.info_status = json_data["info_status"]
 
@@ -204,7 +205,7 @@ class DiscordBot(commands.Bot):
 
                 if not channel_created:
                     channel_new = await category.guild.create_text_channel(m.name, category=category, topic=m.to_discord_string(False))
-                    if len(m.info_status) > 0:
+                    if hasattr(m, "info_status") and len(m.info_status) > 0:
                         await channel_new.send(f"```{m.info_status}```")
         else:
             text = "Currently no upcoming machines :("
