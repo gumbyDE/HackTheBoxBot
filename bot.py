@@ -131,7 +131,9 @@ class HackTheBox:
 
         machines = []
         for machine in result_json["data"]:
-            machines.append(HackTheBoxMachine(machine))
+            details = requests.get(self.URL_MACHINE_INFO + machine["name"], headers=self.headers)
+            details_json = details.json()
+            machines.append(HackTheBoxMachine(details_json["info"]))
         return machines
 
     def get_list_of_active_machines(self) -> list[HackTheBoxMachine]:
